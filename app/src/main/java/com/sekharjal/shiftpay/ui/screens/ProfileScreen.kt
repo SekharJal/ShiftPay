@@ -302,7 +302,12 @@ fun ProfileScreen(
             HorizontalDivider(Modifier.padding(vertical = 4.dp))
             AmountRow("Take-home", formatMoney(preview.net, currency), emphasis = true)
             Text(
-                "Based on the ${preview.shiftCount} shift(s) you have logged this month.",
+                "Based on the ${preview.shiftCount} shift(s) you have logged this month. " +
+                    if (payMode == PayMode.MONTHLY) {
+                        "Your salary is earned as you work, and reaches the full amount after your standard monthly hours."
+                    } else {
+                        ""
+                    },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 8.dp),

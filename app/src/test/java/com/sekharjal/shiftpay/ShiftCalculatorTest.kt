@@ -65,11 +65,60 @@ class ShiftCalculatorTest {
         assertMoney("712.50", result.gross)
     }
 
+    /** 20 regular 8-hour shifts = 160 hours = the standard month. */
+    private fun fullMonthOfShifts() = (1..20).map { shift(it, "09:00", "17:00") }
+
+    @Test
+    fun monthly_salary_with_no_shifts_earns_nothing() {
+        val r = rules(PayMode.MONTHLY, base = "15000")
+        val result = ShiftCalculator.calculate(emptyList(), emptyList(), emptyList(), r, true)
+        assertMoney("0.00", result.regularPay)
+        assertMoney("0.00", result.gross)
+    }
+
+    @Test
+    fun monthly_salary_is_earned_in_proportion_to_hours_worked() {
+        // 20000 x 8h / 160h = 1000 for one day
+        val r = rules(PayMode.MONTHLY, base = "20000")
+        val oneDay = ShiftCalculator.calculate(listOf(shift(1, "09:00", "17:00")), emptyList(), emptyList(), r, true)
+        assertMoney("1000.00", oneDay.regularPay)
+        // the same one day in a weekly/daily result gives the same figure
+        val daily = ShiftCalculator.calculate(listOf(shift(1, "09:00", "17:00")), emptyList(), emptyList(), r, false)
+        assertMoney("1000.00", daily.regularPay)
+    }
+
+    @Test
+    fun monthly_salary_reaches_the_full_amount_at_standard_hours_and_never_exceeds_it() {
+        val r = rules(PayMode.MONTHLY, base = "20000")
+        val full = ShiftCalculator.calculate(fullMonthOfShifts(), emptyList(), emptyList(), r, true)
+        assertMoney("20000.00", full.regularPay)
+        val extraDays = fullMonthOfShifts() + shift(21, "09:00", "17:00") + shift(22, "09:00", "17:00")
+        val capped = ShiftCalculator.calculate(extraDays, emptyList(), emptyList(), r, true)
+        assertMoney("20000.00", capped.regularPay)
+    }
+
+    @Test
+    fun monthly_salary_with_zero_standard_hours_does_not_crash() {
+        val r = rules(PayMode.MONTHLY, base = "20000", std = "0")
+        val result = ShiftCalculator.calculate(listOf(shift(1, "09:00", "17:00")), emptyList(), emptyList(), r, true)
+        assertMoney("0.00", result.regularPay)
+    }
+
     @Test
     fun monthly_salary_with_full_rate_overtime() {
-        // 20000 / 160h = 125 per hour; 12h x 125 x 1.5 = 2250
+        // 20000 / 160h = 125 per hour; 12h overtime x 125 x 1.5 = 2250 (no regular hours here)
         val r = rules(PayMode.MONTHLY, base = "20000")
         val shifts = listOf(shift(1, "08:00", "20:00", ot = 720))
+        val result = ShiftCalculator.calculate(shifts, emptyList(), emptyList(), r, true)
+        assertMoney("0.00", result.regularPay)
+        assertMoney("2250.00", result.overtimePay)
+        assertMoney("2250.00", result.gross)
+    }
+
+    @Test
+    fun monthly_full_month_plus_full_rate_overtime() {
+        val r = rules(PayMode.MONTHLY, base = "20000")
+        val shifts = fullMonthOfShifts() + shift(21, "08:00", "20:00", ot = 720)
         val result = ShiftCalculator.calculate(shifts, emptyList(), emptyList(), r, true)
         assertMoney("20000.00", result.regularPay)
         assertMoney("2250.00", result.overtimePay)
@@ -80,17 +129,10 @@ class ShiftCalculatorTest {
     fun monthly_salary_with_premium_only_overtime() {
         // Only the 0.5 premium: 12h x 125 x 0.5 = 750
         val r = rules(PayMode.MONTHLY, base = "20000", otMode = OvertimeMode.PREMIUM_ONLY)
-        val shifts = listOf(shift(1, "08:00", "20:00", ot = 720))
+        val shifts = fullMonthOfShifts() + shift(21, "08:00", "20:00", ot = 720)
         val result = ShiftCalculator.calculate(shifts, emptyList(), emptyList(), r, true)
         assertMoney("750.00", result.overtimePay)
         assertMoney("20750.00", result.gross)
-    }
-
-    @Test
-    fun monthly_salary_is_not_counted_in_a_weekly_result() {
-        val r = rules(PayMode.MONTHLY, base = "20000")
-        val result = ShiftCalculator.calculate(listOf(shift(1, "09:00", "17:00")), emptyList(), emptyList(), r, false)
-        assertMoney("0.00", result.regularPay)
     }
 
     @Test

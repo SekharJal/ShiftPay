@@ -113,8 +113,9 @@ object ShiftCalculator {
     }
 
     /**
-     * @param includeMonthlyItems true for a whole-month result: includes the fixed monthly
-     *   salary and "per month" allowances/deductions. False for a week or a single day.
+     * @param includeMonthlyItems true for a whole-month result: includes the "per month"
+     *   allowances/deductions. False for a week or a single day. (A monthly salary is
+     *   always earned in proportion to the hours worked, so it needs no such flag.)
      */
     fun calculate(
         shifts: List<ShiftInput>,
@@ -138,8 +139,17 @@ object ShiftCalculator {
 
         val regularPay = when (rules.payMode) {
             PayMode.HOURLY -> money(minutesToHours(regularMinutes) * rules.hourlyRate, digits)
-            PayMode.MONTHLY ->
-                if (includeMonthlyItems) money(rules.baseSalary, digits) else zero(digits)
+            // A monthly salary is earned as the worker works: salary x (regular hours / standard
+            // monthly hours), never more than the full salary. No shifts means nothing earned yet.
+            PayMode.MONTHLY -> {
+                val standardMinutes = rules.standardMonthlyHours * SIXTY
+                if (standardMinutes.signum() <= 0) {
+                    zero(digits)
+                } else {
+                    val earned = (rules.baseSalary * BigDecimal(regularMinutes)).divide(standardMinutes, MC)
+                    money(earned.min(rules.baseSalary), digits)
+                }
+            }
         }
 
         val multiplier =

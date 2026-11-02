@@ -189,8 +189,8 @@ private fun EmptyMonthNote() {
 private fun PartialNote(snap: Snapshot) {
     if (snap.settings.payMode == PayMode.MONTHLY) {
         Text(
-            "Daily and weekly figures show overtime and allowances only. " +
-                "Your fixed monthly salary is counted in the Monthly tab.",
+            "With a monthly salary, each day's pay is your salary shared across your " +
+                "standard monthly hours. Monthly allowances and deductions appear in the Monthly tab.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

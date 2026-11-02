@@ -34,7 +34,9 @@ See `app/src/main/java/com/sekharjal/shiftpay/calc/ShiftCalculator.kt` and its u
 
 - Overnight shift 22:00 -> 06:00 = 8 elapsed hours before breaks. Unpaid breaks are deducted; paid breaks are kept.
 - Hourly: regular pay = regular hours x rate; overtime = OT hours x rate x multiplier.
-- Monthly: gross = base salary + overtime + allowances. Overtime can be paid at the *full* rate or as a *premium only* (multiplier - 1).
+- Monthly: the salary is earned as you work (salary x regular hours worked / standard monthly hours, capped at the full salary),
+  so a month with no shifts earns nothing yet. Gross = earned salary + overtime + allowances.
+  Overtime can be paid at the *full* rate or as a *premium only* (multiplier - 1).
 - Overtime hours count as part of the time worked on that shift. Extra time marked "no overtime pay" is treated as regular time
   (for hourly workers it is paid at the normal rate).
 
