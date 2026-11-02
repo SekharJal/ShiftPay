@@ -7,16 +7,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -35,19 +34,20 @@ import com.sekharjal.shiftpay.ShiftPayViewModel
 import com.sekharjal.shiftpay.data.AppSettings
 import com.sekharjal.shiftpay.data.Snapshot
 import com.sekharjal.shiftpay.data.ThemeChoice
-import com.sekharjal.shiftpay.ui.screens.CalculatorScreen
 import com.sekharjal.shiftpay.ui.screens.HomeScreen
+import com.sekharjal.shiftpay.ui.screens.ProfileScreen
 import com.sekharjal.shiftpay.ui.screens.ReportsScreen
 import com.sekharjal.shiftpay.ui.screens.SettingsScreen
 import com.sekharjal.shiftpay.ui.screens.ShiftEditorScreen
 import com.sekharjal.shiftpay.ui.screens.ShiftsScreen
 import com.sekharjal.shiftpay.ui.theme.ShiftPayTheme
 
+/** The bottom bar shows icons only: each page already shows its own name at the top. */
 enum class Destination(val route: String, val label: String, val icon: ImageVector) {
     Home("home", "Home", Icons.Filled.Home),
     Shifts("shifts", "Shifts", Icons.Filled.DateRange),
-    Calculator("calculator", "Calculator", Icons.Filled.Build),
     Reports("reports", "Reports", Icons.AutoMirrored.Filled.List),
+    Profile("profile", "Profile", Icons.Filled.Person),
     Settings("settings", "Settings", Icons.Filled.Settings),
 }
 
@@ -81,6 +81,14 @@ private fun AppContent(vm: ShiftPayViewModel, settings: AppSettings) {
     val snapshot = remember(settings, shifts, allowances, deductions) {
         Snapshot(settings, shifts, allowances, deductions)
     }
+    val clock = remember(vm) {
+        ClockActions(
+            onClockIn = { vm.clockIn() },
+            onChangeStart = { vm.changeActiveStart(it) },
+            onDiscard = { vm.discardActiveShift() },
+            onClockOut = { vm.clockOut(it) },
+        )
+    }
 
     val backStackEntry by nav.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -101,7 +109,7 @@ private fun AppContent(vm: ShiftPayViewModel, settings: AppSettings) {
                                 }
                             },
                             icon = { Icon(destination.icon, contentDescription = destination.label) },
-                            label = { Text(destination.label) },
+                            alwaysShowLabel = false,
                         )
                     }
                 }
@@ -116,9 +124,9 @@ private fun AppContent(vm: ShiftPayViewModel, settings: AppSettings) {
             composable(Destination.Home.route) {
                 HomeScreen(
                     snap = snapshot,
-                    onAddShift = { nav.navigate("$EDITOR_ROUTE/-1") },
+                    clock = clock,
                     onSetupPay = {
-                        nav.navigate(Destination.Calculator.route) {
+                        nav.navigate(Destination.Profile.route) {
                             popUpTo(nav.graph.findStartDestination().id) { saveState = true }
                             launchSingleTop = true
                             restoreState = true
@@ -129,13 +137,17 @@ private fun AppContent(vm: ShiftPayViewModel, settings: AppSettings) {
             composable(Destination.Shifts.route) {
                 ShiftsScreen(
                     snap = snapshot,
-                    onAdd = { nav.navigate("$EDITOR_ROUTE/-1") },
+                    clock = clock,
+                    onAddManual = { nav.navigate("$EDITOR_ROUTE/-1") },
                     onEdit = { id -> nav.navigate("$EDITOR_ROUTE/$id") },
                     onDelete = { id -> vm.deleteShift(id) },
                 )
             }
-            composable(Destination.Calculator.route) {
-                CalculatorScreen(
+            composable(Destination.Reports.route) {
+                ReportsScreen(snap = snapshot)
+            }
+            composable(Destination.Profile.route) {
+                ProfileScreen(
                     snap = snapshot,
                     onSaveSettings = { vm.saveSettings(it) },
                     onAddAllowance = { name, amount, freq -> vm.addAllowance(name, amount, freq) },
@@ -143,9 +155,6 @@ private fun AppContent(vm: ShiftPayViewModel, settings: AppSettings) {
                     onAddDeduction = { name, amount, freq -> vm.addDeduction(name, amount, freq) },
                     onDeleteDeduction = { vm.deleteDeduction(it) },
                 )
-            }
-            composable(Destination.Reports.route) {
-                ReportsScreen(snap = snapshot)
             }
             composable(Destination.Settings.route) {
                 SettingsScreen(snap = snapshot, onSaveSettings = { vm.saveSettings(it) })

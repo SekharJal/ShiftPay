@@ -26,6 +26,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.sekharjal.shiftpay.data.Snapshot
 import com.sekharjal.shiftpay.ui.AmountRow
+import com.sekharjal.shiftpay.ui.ClockActions
+import com.sekharjal.shiftpay.ui.ClockCard
 import com.sekharjal.shiftpay.ui.HoursChartSection
 import com.sekharjal.shiftpay.ui.ScreenTitle
 import com.sekharjal.shiftpay.ui.SectionCard
@@ -38,7 +40,7 @@ import com.sekharjal.shiftpay.ui.monthTitle
 import java.time.YearMonth
 
 @Composable
-fun HomeScreen(snap: Snapshot, onAddShift: () -> Unit, onSetupPay: () -> Unit) {
+fun HomeScreen(snap: Snapshot, clock: ClockActions, onSetupPay: () -> Unit) {
     val currency = snap.settings.currency
     val month = remember { YearMonth.now() }
     val result = remember(snap) { snap.monthResult(month) }
@@ -94,13 +96,7 @@ fun HomeScreen(snap: Snapshot, onAddShift: () -> Unit, onSetupPay: () -> Unit) {
             }
         }
 
-        item {
-            Button(onClick = onAddShift, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Filled.Add, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("Add a shift")
-            }
-        }
+        item { ClockCard(snap = snap, actions = clock) }
 
         if (!snap.payConfigured) {
             item {
@@ -112,10 +108,10 @@ fun HomeScreen(snap: Snapshot, onAddShift: () -> Unit, onSetupPay: () -> Unit) {
                 ) {
                     Column(Modifier.padding(16.dp)) {
                         Text(
-                            "Set your salary or hourly rate to see real earnings.",
+                            "Set your salary or hourly rate in your profile to see real earnings.",
                             style = MaterialTheme.typography.bodyLarge,
                         )
-                        TextButton(onClick = onSetupPay) { Text("Open Calculator") }
+                        TextButton(onClick = onSetupPay) { Text("Open Profile") }
                     }
                 }
             }

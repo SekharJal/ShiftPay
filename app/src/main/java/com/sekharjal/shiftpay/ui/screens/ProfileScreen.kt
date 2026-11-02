@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
@@ -20,7 +21,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -31,30 +34,37 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.sekharjal.shiftpay.calc.Frequency
 import com.sekharjal.shiftpay.calc.OvertimeMode
 import com.sekharjal.shiftpay.calc.PayMode
 import com.sekharjal.shiftpay.calc.ShiftCalculator
-import com.sekharjal.shiftpay.data.AllowanceItem
 import com.sekharjal.shiftpay.data.AppSettings
-import com.sekharjal.shiftpay.data.DeductionItem
 import com.sekharjal.shiftpay.data.Snapshot
+import com.sekharjal.shiftpay.data.scheduledElapsedMinutes
+import com.sekharjal.shiftpay.data.scheduledEnd
+import com.sekharjal.shiftpay.data.scheduledStart
+import com.sekharjal.shiftpay.data.scheduledWorkedMinutes
 import com.sekharjal.shiftpay.data.toMoney
 import com.sekharjal.shiftpay.data.toRules
 import com.sekharjal.shiftpay.ui.AmountRow
 import com.sekharjal.shiftpay.ui.ChoiceRow
 import com.sekharjal.shiftpay.ui.DecimalField
+import com.sekharjal.shiftpay.ui.PickTimeDialog
 import com.sekharjal.shiftpay.ui.ScreenTitle
 import com.sekharjal.shiftpay.ui.SectionCard
 import com.sekharjal.shiftpay.ui.SectionTitle
+import com.sekharjal.shiftpay.ui.formatDuration
 import com.sekharjal.shiftpay.ui.formatMoney
+import com.sekharjal.shiftpay.ui.formatTime
 import com.sekharjal.shiftpay.ui.label
 import com.sekharjal.shiftpay.ui.monthTitle
+import java.time.LocalTime
 import java.time.YearMonth
 
 @Composable
-fun CalculatorScreen(
+fun ProfileScreen(
     snap: Snapshot,
     onSaveSettings: (AppSettings) -> Unit,
     onAddAllowance: (String, String, Frequency) -> Unit,
@@ -63,23 +73,35 @@ fun CalculatorScreen(
     onDeleteDeduction: (Long) -> Unit,
 ) {
     val saved = snap.settings
+    var name by remember(saved) { mutableStateOf(saved.name) }
     var payMode by remember(saved) { mutableStateOf(saved.payMode) }
     var baseSalary by remember(saved) { mutableStateOf(saved.baseSalary) }
     var hourlyRate by remember(saved) { mutableStateOf(saved.hourlyRate) }
     var standardHours by remember(saved) { mutableStateOf(saved.standardHours) }
     var multiplier by remember(saved) { mutableStateOf(saved.overtimeMultiplier) }
     var overtimeMode by remember(saved) { mutableStateOf(saved.overtimeMode) }
+    var shiftStart by remember(saved) { mutableStateOf(saved.shiftStart) }
+    var shiftEnd by remember(saved) { mutableStateOf(saved.shiftEnd) }
+    var breakText by remember(saved) { mutableStateOf(saved.shiftBreakMinutes) }
+    var breakPaid by remember(saved) { mutableStateOf(saved.shiftBreakPaid) }
 
     var showAllowanceDialog by remember { mutableStateOf(false) }
     var showDeductionDialog by remember { mutableStateOf(false) }
+    var showStartPicker by remember { mutableStateOf(false) }
+    var showEndPicker by remember { mutableStateOf(false) }
 
     val draft = saved.copy(
+        name = name,
         payMode = payMode,
         baseSalary = baseSalary,
         hourlyRate = hourlyRate,
         standardHours = standardHours,
         overtimeMultiplier = multiplier,
         overtimeMode = overtimeMode,
+        shiftStart = shiftStart,
+        shiftEnd = shiftEnd,
+        shiftBreakMinutes = breakText,
+        shiftBreakPaid = breakPaid,
     )
     val dirty = draft != saved
     val month = remember { YearMonth.now() }
@@ -89,6 +111,9 @@ fun CalculatorScreen(
     }
     val effectiveRate = ShiftCalculator.effectiveHourlyRate(draft.toRules())
     val currency = saved.currency
+    val startTime = draft.scheduledStart()
+    val endTime = draft.scheduledEnd()
+    val sameShiftTimes = startTime == endTime
 
     Column(
         Modifier
@@ -99,9 +124,20 @@ fun CalculatorScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         ScreenTitle(
-            title = "Salary calculator",
-            subtitle = "Tell ShiftPay how you are paid. Nothing here assumes any country's labour law.",
+            title = "Profile",
+            subtitle = "Your pay and your shift. Nothing here assumes any country's labour law.",
         )
+
+        SectionCard {
+            SectionTitle("About you")
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Your name (optional)") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
 
         SectionCard {
             SectionTitle("How are you paid?")
@@ -155,15 +191,67 @@ fun CalculatorScreen(
                     onClick = { overtimeMode = OvertimeMode.PREMIUM_ONLY },
                 )
             }
+        }
 
+        SectionCard {
+            SectionTitle("Your shift")
+            Text(
+                "Your normal working hours. When you end a shift after these hours, " +
+                    "ShiftPay asks whether the extra time is paid overtime.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Spacer(Modifier.height(12.dp))
-            Button(
-                onClick = { onSaveSettings(draft) },
-                enabled = dirty,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(if (dirty) "Save pay settings" else "Saved")
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedButton(onClick = { showStartPicker = true }, modifier = Modifier.weight(1f)) {
+                    Text("Start: ${formatTime(startTime, saved.use24Hour)}")
+                }
+                OutlinedButton(onClick = { showEndPicker = true }, modifier = Modifier.weight(1f)) {
+                    Text("End: ${formatTime(endTime, saved.use24Hour)}")
+                }
             }
+            if (sameShiftTimes) {
+                Text(
+                    "Start and end time can't be the same.",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = breakText,
+                onValueChange = { v -> if (v.all { it.isDigit() } && v.length <= 4) breakText = v },
+                label = { Text("Break (minutes)") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(
+                Modifier.fillMaxWidth().padding(top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text("Break is paid", style = MaterialTheme.typography.bodyLarge)
+                Switch(checked = breakPaid, onCheckedChange = { breakPaid = it })
+            }
+            if (!sameShiftTimes) {
+                Text(
+                    "Scheduled: ${formatDuration(draft.scheduledElapsedMinutes())} " +
+                        "(${formatDuration(draft.scheduledWorkedMinutes())} of paid work after the break)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+        }
+
+        Button(
+            onClick = { onSaveSettings(draft.copy(name = draft.name.trim())) },
+            enabled = dirty && !sameShiftTimes,
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+        ) {
+            Text(if (dirty) "Save profile" else "Saved")
         }
 
         SectionCard {
@@ -223,13 +311,36 @@ fun CalculatorScreen(
         Spacer(Modifier.height(16.dp))
     }
 
+    if (showStartPicker) {
+        PickTimeDialog(
+            initial = startTime,
+            is24Hour = saved.use24Hour,
+            onDismiss = { showStartPicker = false },
+            onConfirm = { picked: LocalTime ->
+                shiftStart = picked.toString()
+                showStartPicker = false
+            },
+        )
+    }
+    if (showEndPicker) {
+        PickTimeDialog(
+            initial = endTime,
+            is24Hour = saved.use24Hour,
+            onDismiss = { showEndPicker = false },
+            onConfirm = { picked: LocalTime ->
+                shiftEnd = picked.toString()
+                showEndPicker = false
+            },
+        )
+    }
+
     if (showAllowanceDialog) {
         AddItemDialog(
             title = "Add allowance",
             frequencies = listOf(Frequency.PER_SHIFT, Frequency.PER_NIGHT_SHIFT, Frequency.PER_MONTH),
             onDismiss = { showAllowanceDialog = false },
-            onAdd = { name, amount, freq ->
-                onAddAllowance(name, amount, freq)
+            onAdd = { itemName, amount, freq ->
+                onAddAllowance(itemName, amount, freq)
                 showAllowanceDialog = false
             },
         )
@@ -239,8 +350,8 @@ fun CalculatorScreen(
             title = "Add deduction",
             frequencies = listOf(Frequency.PER_MONTH, Frequency.PER_SHIFT),
             onDismiss = { showDeductionDialog = false },
-            onAdd = { name, amount, freq ->
-                onAddDeduction(name, amount, freq)
+            onAdd = { itemName, amount, freq ->
+                onAddDeduction(itemName, amount, freq)
                 showDeductionDialog = false
             },
         )

@@ -8,9 +8,13 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.sekharjal.shiftpay.calc.OvertimeMode
 import com.sekharjal.shiftpay.calc.PayMode
 import com.sekharjal.shiftpay.calc.PayRules
+import com.sekharjal.shiftpay.calc.ShiftCalculator
+import com.sekharjal.shiftpay.calc.ShiftType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.math.BigDecimal
+import java.time.LocalDateTime
+import java.time.LocalTime
 import java.util.Currency
 import java.util.Locale
 
@@ -29,6 +33,13 @@ data class AppSettings(
     val dateFormat: String = "dd/MM/yyyy",
     val use24Hour: Boolean = false,
     val theme: ThemeChoice = ThemeChoice.SYSTEM,
+    // The worker's normal (scheduled) shift. Used by clock-in/clock-out.
+    val shiftStart: String = "09:00",
+    val shiftEnd: String = "17:00",
+    val shiftBreakMinutes: String = "0",
+    val shiftBreakPaid: Boolean = false,
+    // Set while the worker is clocked in: the moment they started, as ISO text. Empty = clocked out.
+    val activeShiftStart: String = "",
 )
 
 fun defaultCurrencyCode(): String =
@@ -59,6 +70,40 @@ fun AppSettings.toRules(): PayRules = PayRules(
     currencyDigits = currencyDigits(currency),
 )
 
+// ---- The scheduled shift --------------------------------------------------
+
+fun AppSettings.scheduledStart(): LocalTime =
+    runCatching { LocalTime.parse(shiftStart) }.getOrDefault(LocalTime.of(9, 0))
+
+fun AppSettings.scheduledEnd(): LocalTime =
+    runCatching { LocalTime.parse(shiftEnd) }.getOrDefault(LocalTime.of(17, 0))
+
+fun AppSettings.scheduledBreakMinutes(): Int = shiftBreakMinutes.toIntOrNull() ?: 0
+
+/** Minutes between the scheduled start and end (an end earlier than the start means past midnight). */
+fun AppSettings.scheduledElapsedMinutes(): Int =
+    ShiftCalculator.elapsedMinutes(scheduledStart(), scheduledEnd())
+
+/** Scheduled minutes of work: elapsed time minus an unpaid break. */
+fun AppSettings.scheduledWorkedMinutes(): Int {
+    val unpaidBreak = if (shiftBreakPaid) 0 else scheduledBreakMinutes()
+    return (scheduledElapsedMinutes() - unpaidBreak).coerceAtLeast(0)
+}
+
+/** Night if the shift runs past midnight or starts late evening / very early morning. */
+fun AppSettings.scheduledShiftType(): ShiftType {
+    val start = scheduledStart()
+    val end = scheduledEnd()
+    val pastMidnight = end <= start
+    return if (pastMidnight || start.hour >= 20 || start.hour < 5) ShiftType.NIGHT else ShiftType.DAY
+}
+
+/** The moment the worker clocked in, or null when clocked out. */
+fun AppSettings.activeStart(): LocalDateTime? =
+    runCatching { LocalDateTime.parse(activeShiftStart) }.getOrNull()
+
+// ---------------------------------------------------------------------------
+
 private val Context.settingsDataStore by preferencesDataStore(name = "shiftpay_settings")
 
 private inline fun <reified T : Enum<T>> String?.toEnum(default: T): T =
@@ -78,6 +123,11 @@ class SettingsStore(private val context: Context) {
         val DATE_FORMAT = stringPreferencesKey("date_format")
         val USE_24_HOUR = booleanPreferencesKey("use_24_hour")
         val THEME = stringPreferencesKey("theme")
+        val SHIFT_START = stringPreferencesKey("shift_start")
+        val SHIFT_END = stringPreferencesKey("shift_end")
+        val SHIFT_BREAK_MINUTES = stringPreferencesKey("shift_break_minutes")
+        val SHIFT_BREAK_PAID = booleanPreferencesKey("shift_break_paid")
+        val ACTIVE_SHIFT_START = stringPreferencesKey("active_shift_start")
     }
 
     val settings: Flow<AppSettings> = context.settingsDataStore.data.map { p ->
@@ -94,9 +144,15 @@ class SettingsStore(private val context: Context) {
             dateFormat = p[Keys.DATE_FORMAT] ?: d.dateFormat,
             use24Hour = p[Keys.USE_24_HOUR] ?: d.use24Hour,
             theme = p[Keys.THEME].toEnum(d.theme),
+            shiftStart = p[Keys.SHIFT_START] ?: d.shiftStart,
+            shiftEnd = p[Keys.SHIFT_END] ?: d.shiftEnd,
+            shiftBreakMinutes = p[Keys.SHIFT_BREAK_MINUTES] ?: d.shiftBreakMinutes,
+            shiftBreakPaid = p[Keys.SHIFT_BREAK_PAID] ?: d.shiftBreakPaid,
+            activeShiftStart = p[Keys.ACTIVE_SHIFT_START] ?: d.activeShiftStart,
         )
     }
 
+    /** Saves every setting EXCEPT the active clock-in, which has its own setter below. */
     suspend fun save(s: AppSettings) {
         context.settingsDataStore.edit { p ->
             p[Keys.NAME] = s.name
@@ -110,6 +166,15 @@ class SettingsStore(private val context: Context) {
             p[Keys.DATE_FORMAT] = s.dateFormat
             p[Keys.USE_24_HOUR] = s.use24Hour
             p[Keys.THEME] = s.theme.name
+            p[Keys.SHIFT_START] = s.shiftStart
+            p[Keys.SHIFT_END] = s.shiftEnd
+            p[Keys.SHIFT_BREAK_MINUTES] = s.shiftBreakMinutes
+            p[Keys.SHIFT_BREAK_PAID] = s.shiftBreakPaid
         }
+    }
+
+    /** Remembers (or clears, with "") the moment the worker clocked in. Survives closing the app. */
+    suspend fun setActiveShift(isoDateTime: String) {
+        context.settingsDataStore.edit { p -> p[Keys.ACTIVE_SHIFT_START] = isoDateTime }
     }
 }

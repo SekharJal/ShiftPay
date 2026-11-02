@@ -48,6 +48,10 @@ import com.sekharjal.shiftpay.calc.ShiftInput
 import com.sekharjal.shiftpay.calc.ShiftType
 import com.sekharjal.shiftpay.data.ShiftRecord
 import com.sekharjal.shiftpay.data.Snapshot
+import com.sekharjal.shiftpay.data.scheduledBreakMinutes
+import com.sekharjal.shiftpay.data.scheduledEnd
+import com.sekharjal.shiftpay.data.scheduledShiftType
+import com.sekharjal.shiftpay.data.scheduledStart
 import com.sekharjal.shiftpay.data.toMoney
 import com.sekharjal.shiftpay.ui.AmountRow
 import com.sekharjal.shiftpay.ui.SectionCard
@@ -80,15 +84,15 @@ fun ShiftEditorScreen(
         mutableStateOf(existing?.let { runCatching { LocalDate.parse(it.date) }.getOrNull() } ?: LocalDate.now())
     }
     var start by remember {
-        mutableStateOf(existing?.let { runCatching { LocalTime.parse(it.startTime) }.getOrNull() } ?: LocalTime.of(9, 0))
+        mutableStateOf(existing?.let { runCatching { LocalTime.parse(it.startTime) }.getOrNull() } ?: settings.scheduledStart())
     }
     var end by remember {
-        mutableStateOf(existing?.let { runCatching { LocalTime.parse(it.endTime) }.getOrNull() } ?: LocalTime.of(17, 0))
+        mutableStateOf(existing?.let { runCatching { LocalTime.parse(it.endTime) }.getOrNull() } ?: settings.scheduledEnd())
     }
-    var breakText by remember { mutableStateOf(existing?.breakMinutes?.toString() ?: "0") }
-    var breakPaid by remember { mutableStateOf(existing?.breakPaid ?: false) }
+    var breakText by remember { mutableStateOf(existing?.breakMinutes?.toString() ?: settings.scheduledBreakMinutes().toString()) }
+    var breakPaid by remember { mutableStateOf(existing?.breakPaid ?: settings.shiftBreakPaid) }
     var type by remember {
-        mutableStateOf(existing?.let { runCatching { ShiftType.valueOf(it.shiftType) }.getOrNull() } ?: ShiftType.DAY)
+        mutableStateOf(existing?.let { runCatching { ShiftType.valueOf(it.shiftType) }.getOrNull() } ?: settings.scheduledShiftType())
     }
     var overtimeText by remember {
         mutableStateOf(existing?.let { minutesToHoursText(it.overtimeMinutes) } ?: "0")
@@ -120,7 +124,7 @@ fun ShiftEditorScreen(
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
             }
             Text(
-                if (existing == null) "Add shift" else "Edit shift",
+                if (existing == null) "Add past shift" else "Edit shift",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
             )
@@ -135,17 +139,7 @@ fun ShiftEditorScreen(
             ShiftType.entries.forEach { option ->
                 FilterChip(
                     selected = type == option,
-                    onClick = {
-                        type = option
-                        // Handy presets when adding a new shift; times can still be changed.
-                        if (existing == null) {
-                            when (option) {
-                                ShiftType.DAY -> { start = LocalTime.of(9, 0); end = LocalTime.of(17, 0) }
-                                ShiftType.NIGHT -> { start = LocalTime.of(22, 0); end = LocalTime.of(6, 0) }
-                                ShiftType.CUSTOM -> Unit
-                            }
-                        }
-                    },
+                    onClick = { type = option },
                     label = { Text(option.label()) },
                 )
             }

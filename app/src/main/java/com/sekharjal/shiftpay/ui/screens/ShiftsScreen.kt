@@ -2,7 +2,6 @@ package com.sekharjal.shiftpay.ui.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -12,14 +11,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -34,6 +32,8 @@ import androidx.compose.ui.unit.dp
 import com.sekharjal.shiftpay.calc.ShiftCalculator
 import com.sekharjal.shiftpay.data.ShiftEntry
 import com.sekharjal.shiftpay.data.Snapshot
+import com.sekharjal.shiftpay.ui.ClockActions
+import com.sekharjal.shiftpay.ui.ClockCard
 import com.sekharjal.shiftpay.ui.ScreenTitle
 import com.sekharjal.shiftpay.ui.formatDateWithDay
 import com.sekharjal.shiftpay.ui.formatDuration
@@ -44,49 +44,47 @@ import com.sekharjal.shiftpay.ui.label
 @Composable
 fun ShiftsScreen(
     snap: Snapshot,
-    onAdd: () -> Unit,
+    clock: ClockActions,
+    onAddManual: () -> Unit,
     onEdit: (Long) -> Unit,
     onDelete: (Long) -> Unit,
 ) {
     var pendingDelete by remember { mutableStateOf<Long?>(null) }
 
-    Box(Modifier.fillMaxSize()) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item {
+            ScreenTitle(
+                title = "Shifts",
+                subtitle = "Clock in and out, or tap a past shift to edit it.",
+            )
+        }
+        item { ClockCard(snap = snap, actions = clock) }
+        item {
+            OutlinedButton(onClick = onAddManual, modifier = Modifier.fillMaxWidth()) {
+                Text("Add a past shift manually")
+            }
+        }
+        if (snap.entries.isEmpty()) {
             item {
-                ScreenTitle(
-                    title = "Shifts",
-                    subtitle = "Tap a shift to edit it. Tap + to add a new one.",
-                )
-            }
-            if (snap.entries.isEmpty()) {
-                item {
-                    Text(
-                        "No shifts yet. Tap the + button to log your first shift.",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(vertical = 24.dp),
-                    )
-                }
-            }
-            items(snap.entries, key = { it.record.id }) { entry ->
-                ShiftCard(
-                    entry = entry,
-                    snap = snap,
-                    onClick = { onEdit(entry.record.id) },
-                    onDelete = { pendingDelete = entry.record.id },
+                Text(
+                    "No shifts recorded yet. Tap Start shift when you begin work.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 16.dp),
                 )
             }
         }
-
-        FloatingActionButton(
-            onClick = onAdd,
-            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
-        ) {
-            Icon(Icons.Filled.Add, contentDescription = "Add shift")
+        items(snap.entries, key = { it.record.id }) { entry ->
+            ShiftCard(
+                entry = entry,
+                snap = snap,
+                onClick = { onEdit(entry.record.id) },
+                onDelete = { pendingDelete = entry.record.id },
+            )
         }
     }
 

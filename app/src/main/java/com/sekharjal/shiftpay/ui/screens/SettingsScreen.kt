@@ -54,7 +54,6 @@ private val DATE_FORMATS = listOf("dd/MM/yyyy", "MM/dd/yyyy", "yyyy-MM-dd", "d M
 @Composable
 fun SettingsScreen(snap: Snapshot, onSaveSettings: (AppSettings) -> Unit) {
     val settings = snap.settings
-    var nameText by remember(settings.name) { mutableStateOf(settings.name) }
     var showCurrencyDialog by remember { mutableStateOf(false) }
     val today = remember { LocalDate.now() }
 
@@ -67,21 +66,6 @@ fun SettingsScreen(snap: Snapshot, onSaveSettings: (AppSettings) -> Unit) {
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         ScreenTitle(title = "Settings")
-
-        SectionCard {
-            SectionTitle("Profile")
-            OutlinedTextField(
-                value = nameText,
-                onValueChange = { nameText = it },
-                label = { Text("Your name (optional)") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            TextButton(
-                onClick = { onSaveSettings(settings.copy(name = nameText.trim())) },
-                enabled = nameText.trim() != settings.name,
-            ) { Text("Save name") }
-        }
 
         SectionCard {
             SectionTitle("Currency")
@@ -168,7 +152,7 @@ fun SettingsScreen(snap: Snapshot, onSaveSettings: (AppSettings) -> Unit) {
         }
 
         Text(
-            "ShiftPay 0.1.0 (test build)",
+            "ShiftPay 0.2.0 (test build)",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

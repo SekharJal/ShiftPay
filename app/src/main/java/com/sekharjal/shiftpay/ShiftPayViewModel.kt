@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.LocalDateTime
+import java.time.temporal.ChronoUnit
 
 /** Holds the app's data and is the only place that writes to the database/settings. */
 class ShiftPayViewModel(application: Application) : AndroidViewModel(application) {
@@ -36,6 +38,32 @@ class ShiftPayViewModel(application: Application) : AndroidViewModel(application
 
     fun saveSettings(settings: AppSettings) {
         viewModelScope.launch { store.save(settings) }
+    }
+
+    /** Clock in: remember the exact moment, so the shift keeps running even if the app is closed. */
+    fun clockIn() {
+        viewModelScope.launch {
+            store.setActiveShift(LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS).toString())
+        }
+    }
+
+    /** Fix a forgotten or wrong clock-in time while the shift is running. */
+    fun changeActiveStart(start: LocalDateTime) {
+        viewModelScope.launch {
+            store.setActiveShift(start.truncatedTo(ChronoUnit.SECONDS).toString())
+        }
+    }
+
+    fun discardActiveShift() {
+        viewModelScope.launch { store.setActiveShift("") }
+    }
+
+    /** Clock out: save the finished shift, then clear the running one. */
+    fun clockOut(record: ShiftRecord) {
+        viewModelScope.launch {
+            db.shiftDao().upsert(record)
+            store.setActiveShift("")
+        }
     }
 
     fun saveShift(record: ShiftRecord) {
