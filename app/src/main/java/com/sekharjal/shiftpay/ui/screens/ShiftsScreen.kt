@@ -125,7 +125,8 @@ private fun ShiftCard(entry: ShiftEntry, snap: Snapshot, onClick: () -> Unit, on
                 )
                 Text(
                     "${formatTime(input.start, settings.use24Hour)} – " +
-                        "${formatTime(input.end, settings.use24Hour)} · ${input.type.label()}",
+                        "${formatTime(input.end, settings.use24Hour)} · ${input.type.label()}" +
+                        if (input.date in snap.holidayDates) " · Holiday" else "",
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 val overtimeText =

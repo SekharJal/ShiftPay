@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import com.sekharjal.shiftpay.data.Holiday
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 
@@ -64,6 +66,20 @@ class ShiftPayViewModel(application: Application) : AndroidViewModel(application
             db.shiftDao().upsert(record)
             store.setActiveShift("")
         }
+    }
+
+    /** Adds a holiday; adding the same date again just renames it. */
+    fun addHoliday(date: LocalDate, name: String) {
+        viewModelScope.launch {
+            store.editHolidays { list ->
+                (list.filter { it.date != date } + Holiday(date, name.trim().ifEmpty { "Holiday" }))
+                    .sortedBy { it.date }
+            }
+        }
+    }
+
+    fun deleteHoliday(date: LocalDate) {
+        viewModelScope.launch { store.editHolidays { list -> list.filter { it.date != date } } }
     }
 
     fun saveShift(record: ShiftRecord) {

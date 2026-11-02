@@ -152,7 +152,7 @@ fun SettingsScreen(snap: Snapshot, onSaveSettings: (AppSettings) -> Unit) {
         }
 
         Text(
-            "ShiftPay 0.2.0 (test build)",
+            "ShiftPay 0.3.0 (test build)",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

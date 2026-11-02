@@ -37,6 +37,10 @@ data class PayRules(
     val overtimeMultiplier: BigDecimal,
     val overtimeMode: OvertimeMode,
     val currencyDigits: Int,
+    /** Pay multiplier for hours worked on a holiday. 1 (or less) means holidays are paid like any day. */
+    val holidayMultiplier: BigDecimal = BigDecimal.ONE,
+    /** Minutes of paid work credited for each listed holiday the worker did not work. */
+    val holidayCreditMinutes: Int = 0,
 )
 
 data class ShiftInput(
@@ -73,9 +77,13 @@ data class EarningsResult(
     val overtimePay: BigDecimal,
     val allowances: BigDecimal,
     val deductions: BigDecimal,
+    /** Extra pay for working on holidays (the part above normal pay). */
+    val holidayPay: BigDecimal = BigDecimal.ZERO,
+    /** Holidays that were not worked and are paid as a normal day. Already included in regularPay. */
+    val paidHolidayCount: Int = 0,
 ) {
     val workedMinutes: Long get() = regularMinutes + overtimeMinutes
-    val gross: BigDecimal get() = regularPay + overtimePay + allowances
+    val gross: BigDecimal get() = regularPay + overtimePay + holidayPay + allowances
     val net: BigDecimal get() = gross - deductions
 }
 
@@ -116,6 +124,10 @@ object ShiftCalculator {
      * @param includeMonthlyItems true for a whole-month result: includes the "per month"
      *   allowances/deductions. False for a week or a single day. (A monthly salary is
      *   always earned in proportion to the hours worked, so it needs no such flag.)
+     * @param holidayDates every holiday the worker has listed. A shift on one of these dates is
+     *   paid with the holiday multiplier (if the worker chose one).
+     * @param paidHolidayCount listed holidays in this period that were NOT worked. Each one is
+     *   paid as a normal day, i.e. the worker's scheduled hours are credited.
      */
     fun calculate(
         shifts: List<ShiftInput>,
@@ -123,22 +135,34 @@ object ShiftCalculator {
         deductions: List<LineItem>,
         rules: PayRules,
         includeMonthlyItems: Boolean,
+        holidayDates: Set<LocalDate> = emptySet(),
+        paidHolidayCount: Int = 0,
     ): EarningsResult {
         var regularMinutes = 0L
         var overtimeMinutes = 0L
+        var holidayRegularMinutes = 0L
+        var holidayOvertimeMinutes = 0L
         var nightShifts = 0
         for (shift in shifts) {
             val h = hoursOf(shift)
             regularMinutes += h.regularMinutes
             overtimeMinutes += h.overtimeMinutes
             if (shift.type == ShiftType.NIGHT) nightShifts++
+            if (shift.date in holidayDates) {
+                holidayRegularMinutes += h.regularMinutes
+                holidayOvertimeMinutes += h.overtimeMinutes
+            }
         }
 
         val digits = rules.currencyDigits
         val rate = effectiveHourlyRate(rules)
 
+        // A holiday that was not worked is a normal paid day: credit the scheduled hours.
+        val creditMinutes = paidHolidayCount.toLong() * rules.holidayCreditMinutes
+        val payableRegularMinutes = regularMinutes + creditMinutes
+
         val regularPay = when (rules.payMode) {
-            PayMode.HOURLY -> money(minutesToHours(regularMinutes) * rules.hourlyRate, digits)
+            PayMode.HOURLY -> money(minutesToHours(payableRegularMinutes) * rules.hourlyRate, digits)
             // A monthly salary is earned as the worker works: salary x (regular hours / standard
             // monthly hours), never more than the full salary. No shifts means nothing earned yet.
             PayMode.MONTHLY -> {
@@ -146,19 +170,32 @@ object ShiftCalculator {
                 if (standardMinutes.signum() <= 0) {
                     zero(digits)
                 } else {
-                    val earned = (rules.baseSalary * BigDecimal(regularMinutes)).divide(standardMinutes, MC)
+                    val earned = (rules.baseSalary * BigDecimal(payableRegularMinutes)).divide(standardMinutes, MC)
                     money(earned.min(rules.baseSalary), digits)
                 }
             }
         }
 
-        val multiplier =
-            if (rules.payMode == PayMode.MONTHLY && rules.overtimeMode == OvertimeMode.PREMIUM_ONLY) {
-                (rules.overtimeMultiplier - BigDecimal.ONE).max(BigDecimal.ZERO)
-            } else {
-                rules.overtimeMultiplier
-            }
-        val overtimePay = money(minutesToHours(overtimeMinutes) * rate * multiplier, digits)
+        // Working on a holiday: the hours are already inside regularPay at the normal rate, so the
+        // extra for a "2x" holiday is the part above normal, (multiplier - 1) x rate.
+        val holidayMultiplier = rules.holidayMultiplier.max(BigDecimal.ONE)
+        val holidayExtra = holidayMultiplier - BigDecimal.ONE
+        val holidayPay = money(minutesToHours(holidayRegularMinutes) * rate * holidayExtra, digits)
+
+        // Overtime. On a holiday the better of the two multipliers is used, not both stacked.
+        val premiumOnly = rules.payMode == PayMode.MONTHLY && rules.overtimeMode == OvertimeMode.PREMIUM_ONLY
+        fun overtimeFactor(multiplier: BigDecimal): BigDecimal =
+            if (premiumOnly) (multiplier - BigDecimal.ONE).max(BigDecimal.ZERO) else multiplier
+
+        val normalOvertimeMinutes = overtimeMinutes - holidayOvertimeMinutes
+        val holidayOvertimeMultiplier =
+            if (holidayMultiplier > BigDecimal.ONE) rules.overtimeMultiplier.max(holidayMultiplier)
+            else rules.overtimeMultiplier
+        val overtimePay = money(
+            minutesToHours(normalOvertimeMinutes) * rate * overtimeFactor(rules.overtimeMultiplier) +
+                minutesToHours(holidayOvertimeMinutes) * rate * overtimeFactor(holidayOvertimeMultiplier),
+            digits,
+        )
 
         val allowanceTotal = itemsTotal(allowances, shifts.size, nightShifts, includeMonthlyItems, digits)
         val deductionTotal = itemsTotal(deductions, shifts.size, nightShifts, includeMonthlyItems, digits)
@@ -171,6 +208,8 @@ object ShiftCalculator {
             overtimePay = overtimePay,
             allowances = allowanceTotal,
             deductions = deductionTotal,
+            holidayPay = holidayPay,
+            paidHolidayCount = paidHolidayCount,
         )
     }
 

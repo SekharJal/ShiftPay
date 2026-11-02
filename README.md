@@ -27,6 +27,15 @@ The bottom bar has five icon tabs:
 
 A running shift survives closing the app or restarting the phone. If you forgot to clock in, use **Change start time**.
 
+## Holidays
+
+Add your own holidays in **Profile -> Holidays** (works for any country; nothing is pre-filled).
+
+- A listed holiday you **don't work** is paid as a normal day: your scheduled hours are credited
+  (so a monthly salary is not reduced). It counts once the date has arrived.
+- If you **work** on a holiday, choose in **Profile -> Holiday pay**: normal pay, or a higher rate (for example 2x).
+  The extra is the part above normal pay. Overtime hours on a holiday use the better of the overtime and holiday multipliers, never both stacked.
+
 ## How the money maths works
 
 All money uses `BigDecimal` (never floating point) and is rounded once, to the currency's own decimal places.

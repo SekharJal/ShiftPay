@@ -13,6 +13,7 @@ import com.sekharjal.shiftpay.calc.ShiftType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.math.BigDecimal
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.util.Currency
@@ -40,7 +41,32 @@ data class AppSettings(
     val shiftBreakPaid: Boolean = false,
     // Set while the worker is clocked in: the moment they started, as ISO text. Empty = clocked out.
     val activeShiftStart: String = "",
+    // Working on a holiday: false = paid like a normal day, true = paid with the multiplier below.
+    val holidayWorkMultiplied: Boolean = false,
+    val holidayMultiplier: String = "2",
+    // The worker's holiday list, stored as text lines "2026-11-12|Diwali". Edited only via editHolidays.
+    val holidaysRaw: String = "",
 )
+
+data class Holiday(val date: LocalDate, val name: String)
+
+fun parseHolidays(raw: String): List<Holiday> =
+    raw.lineSequence()
+        .mapNotNull { line ->
+            val bar = line.indexOf('|')
+            if (bar < 0) {
+                null
+            } else {
+                runCatching { Holiday(LocalDate.parse(line.substring(0, bar)), line.substring(bar + 1)) }.getOrNull()
+            }
+        }
+        .sortedBy { it.date }
+        .toList()
+
+fun encodeHolidays(list: List<Holiday>): String =
+    list.joinToString("\n") { "${it.date}|${it.name.replace('|', ' ').replace('\n', ' ')}" }
+
+fun AppSettings.holidays(): List<Holiday> = parseHolidays(holidaysRaw)
 
 fun defaultCurrencyCode(): String =
     try {
@@ -68,6 +94,8 @@ fun AppSettings.toRules(): PayRules = PayRules(
     overtimeMultiplier = overtimeMultiplier.toMoney(),
     overtimeMode = overtimeMode,
     currencyDigits = currencyDigits(currency),
+    holidayMultiplier = if (holidayWorkMultiplied) holidayMultiplier.toMoney().max(BigDecimal.ONE) else BigDecimal.ONE,
+    holidayCreditMinutes = scheduledWorkedMinutes(),
 )
 
 // ---- The scheduled shift --------------------------------------------------
@@ -128,6 +156,9 @@ class SettingsStore(private val context: Context) {
         val SHIFT_BREAK_MINUTES = stringPreferencesKey("shift_break_minutes")
         val SHIFT_BREAK_PAID = booleanPreferencesKey("shift_break_paid")
         val ACTIVE_SHIFT_START = stringPreferencesKey("active_shift_start")
+        val HOLIDAY_WORK_MULTIPLIED = booleanPreferencesKey("holiday_work_multiplied")
+        val HOLIDAY_MULTIPLIER = stringPreferencesKey("holiday_multiplier")
+        val HOLIDAYS = stringPreferencesKey("holidays")
     }
 
     val settings: Flow<AppSettings> = context.settingsDataStore.data.map { p ->
@@ -149,6 +180,9 @@ class SettingsStore(private val context: Context) {
             shiftBreakMinutes = p[Keys.SHIFT_BREAK_MINUTES] ?: d.shiftBreakMinutes,
             shiftBreakPaid = p[Keys.SHIFT_BREAK_PAID] ?: d.shiftBreakPaid,
             activeShiftStart = p[Keys.ACTIVE_SHIFT_START] ?: d.activeShiftStart,
+            holidayWorkMultiplied = p[Keys.HOLIDAY_WORK_MULTIPLIED] ?: d.holidayWorkMultiplied,
+            holidayMultiplier = p[Keys.HOLIDAY_MULTIPLIER] ?: d.holidayMultiplier,
+            holidaysRaw = p[Keys.HOLIDAYS] ?: d.holidaysRaw,
         )
     }
 
@@ -170,6 +204,16 @@ class SettingsStore(private val context: Context) {
             p[Keys.SHIFT_END] = s.shiftEnd
             p[Keys.SHIFT_BREAK_MINUTES] = s.shiftBreakMinutes
             p[Keys.SHIFT_BREAK_PAID] = s.shiftBreakPaid
+            p[Keys.HOLIDAY_WORK_MULTIPLIED] = s.holidayWorkMultiplied
+            p[Keys.HOLIDAY_MULTIPLIER] = s.holidayMultiplier
+        }
+    }
+
+    /** Changes the holiday list in one step, so two quick edits can never overwrite each other. */
+    suspend fun editHolidays(transform: (List<Holiday>) -> List<Holiday>) {
+        context.settingsDataStore.edit { p ->
+            val current = parseHolidays(p[Keys.HOLIDAYS] ?: "")
+            p[Keys.HOLIDAYS] = encodeHolidays(transform(current))
         }
     }
 

@@ -49,6 +49,11 @@ class Snapshot(
     val rules: PayRules = settings.toRules()
     private val allowanceLines: List<LineItem> = allowances.mapNotNull { it.toLine() }
     private val deductionLines: List<LineItem> = deductions.mapNotNull { it.toLine() }
+    private val today: LocalDate = LocalDate.now()
+
+    /** The holidays the worker has listed, earliest first. */
+    val holidays: List<Holiday> = settings.holidays()
+    val holidayDates: Set<LocalDate> = holidays.map { it.date }.toSet()
 
     /** Shifts that could be read, newest first (the database already sorts them). */
     val entries: List<ShiftEntry> = records.mapNotNull { r -> r.toInput()?.let { ShiftEntry(r, it) } }
@@ -62,10 +67,27 @@ class Snapshot(
     fun inputsIn(month: YearMonth): List<ShiftInput> =
         entries.map { it.input }.filter { YearMonth.from(it.date) == month }
 
-    fun calculate(inputs: List<ShiftInput>, includeMonthlyItems: Boolean): EarningsResult =
-        ShiftCalculator.calculate(inputs, allowanceLines, deductionLines, rules, includeMonthlyItems)
+    fun calculate(
+        inputs: List<ShiftInput>,
+        includeMonthlyItems: Boolean,
+        paidHolidayCount: Int = 0,
+    ): EarningsResult = ShiftCalculator.calculate(
+        inputs, allowanceLines, deductionLines, rules, includeMonthlyItems, holidayDates, paidHolidayCount,
+    )
 
-    fun monthResult(month: YearMonth): EarningsResult = calculate(inputsIn(month), true)
+    /**
+     * Holidays in this month that have already passed and were not worked. Each is paid as a
+     * normal day. (A holiday later in the month is not counted until it arrives.)
+     */
+    fun creditedHolidays(month: YearMonth): List<Holiday> {
+        val worked = inputsIn(month).map { it.date }.toSet()
+        return holidays.filter {
+            YearMonth.from(it.date) == month && !it.date.isAfter(today) && it.date !in worked
+        }
+    }
+
+    fun monthResult(month: YearMonth): EarningsResult =
+        calculate(inputsIn(month), true, creditedHolidays(month).size)
 
     fun shiftEarnings(input: ShiftInput): EarningsResult = calculate(listOf(input), false)
 

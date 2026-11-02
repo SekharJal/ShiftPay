@@ -154,6 +154,8 @@ private fun AppContent(vm: ShiftPayViewModel, settings: AppSettings) {
                     onDeleteAllowance = { vm.deleteAllowance(it) },
                     onAddDeduction = { name, amount, freq -> vm.addDeduction(name, amount, freq) },
                     onDeleteDeduction = { vm.deleteDeduction(it) },
+                    onAddHoliday = { date, name -> vm.addHoliday(date, name) },
+                    onDeleteHoliday = { vm.deleteHoliday(it) },
                 )
             }
             composable(Destination.Settings.route) {

@@ -137,6 +137,9 @@ fun HomeScreen(snap: Snapshot, clock: ClockActions, onSetupPay: () -> Unit) {
                 )
                 AmountRow("Regular pay", formatMoney(result.regularPay, currency))
                 AmountRow("Overtime", formatMoney(result.overtimePay, currency))
+                if (result.holidayPay.signum() > 0) {
+                    AmountRow("Holiday extra pay", formatMoney(result.holidayPay, currency))
+                }
                 AmountRow("Allowances", formatMoney(result.allowances, currency))
                 AmountRow(
                     "Deductions",
@@ -145,7 +148,8 @@ fun HomeScreen(snap: Snapshot, clock: ClockActions, onSetupPay: () -> Unit) {
                 )
                 AmountRow("Take-home", formatMoney(result.net, currency), emphasis = true)
                 Text(
-                    "${result.shiftCount} shift(s) logged this month",
+                    "${result.shiftCount} shift(s) logged this month" +
+                        if (result.paidHolidayCount > 0) " · ${result.paidHolidayCount} paid holiday(s)" else "",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 8.dp),

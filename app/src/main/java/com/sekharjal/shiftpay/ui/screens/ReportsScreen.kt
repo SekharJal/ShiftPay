@@ -45,6 +45,7 @@ import com.sekharjal.shiftpay.ui.formatDuration
 import com.sekharjal.shiftpay.ui.formatMoney
 import com.sekharjal.shiftpay.ui.monthTitle
 import java.time.DayOfWeek
+import java.time.LocalDate
 import java.time.YearMonth
 import java.time.temporal.TemporalAdjusters
 
@@ -89,34 +90,46 @@ fun ReportsScreen(snap: Snapshot) {
 
         when (tab) {
             0 -> {
-                val byDay = inputs.groupBy { it.date }.entries.sortedByDescending { it.key }
-                if (byDay.isEmpty()) EmptyMonthNote()
-                byDay.forEach { (date, dayShifts) ->
-                    val result = snap.calculate(dayShifts, false)
+                val creditedDates = snap.creditedHolidays(month).map { it.date }.toSet()
+                val shiftsByDate = inputs.groupBy { it.date }
+                val dates = (shiftsByDate.keys + creditedDates).sortedDescending()
+                if (dates.isEmpty()) EmptyMonthNote()
+                dates.forEach { date ->
+                    val holiday = snap.holidays.firstOrNull { it.date == date }
+                    val result = snap.calculate(
+                        shiftsByDate[date].orEmpty(),
+                        false,
+                        if (date in creditedDates) 1 else 0,
+                    )
                     PeriodRow(
-                        title = formatDateWithDay(date, settings.dateFormat),
+                        title = formatDateWithDay(date, settings.dateFormat) +
+                            if (holiday != null) " · ${holiday.name}" else "",
                         result = result,
                         currency = currency,
                     )
                 }
-                if (byDay.isNotEmpty()) PartialNote(snap)
+                if (dates.isNotEmpty()) PartialNote(snap)
             }
 
             1 -> {
-                val byWeek = inputs
-                    .groupBy { it.date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)) }
-                    .entries
-                    .sortedByDescending { it.key }
-                if (byWeek.isEmpty()) EmptyMonthNote()
-                byWeek.forEach { (weekStart, weekShifts) ->
-                    val result = snap.calculate(weekShifts, false)
+                val weekOf = { d: LocalDate -> d.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)) }
+                val shiftsByWeek = inputs.groupBy { weekOf(it.date) }
+                val creditedByWeek = snap.creditedHolidays(month).groupBy { weekOf(it.date) }
+                val weeks = (shiftsByWeek.keys + creditedByWeek.keys).sortedDescending()
+                if (weeks.isEmpty()) EmptyMonthNote()
+                weeks.forEach { weekStart ->
+                    val result = snap.calculate(
+                        shiftsByWeek[weekStart].orEmpty(),
+                        false,
+                        creditedByWeek[weekStart].orEmpty().size,
+                    )
                     PeriodRow(
                         title = "Week of ${formatDate(weekStart, "d MMM")} – ${formatDate(weekStart.plusDays(6), "d MMM")}",
                         result = result,
                         currency = currency,
                     )
                 }
-                if (byWeek.isNotEmpty()) PartialNote(snap)
+                if (weeks.isNotEmpty()) PartialNote(snap)
             }
 
             else -> {
@@ -127,6 +140,9 @@ fun ReportsScreen(snap: Snapshot) {
                     AmountRow("Regular hours", formatDuration(result.regularMinutes))
                     AmountRow("Overtime hours", formatDuration(result.overtimeMinutes))
                     AmountRow("Shifts logged", result.shiftCount.toString())
+                    if (result.paidHolidayCount > 0) {
+                        AmountRow("Paid holidays", result.paidHolidayCount.toString())
+                    }
                 }
                 SectionCard {
                     SectionTitle("Earnings")
@@ -149,6 +165,9 @@ fun ReportsScreen(snap: Snapshot) {
                             formatMoney(result.regularPay, currency),
                         )
                         AmountRow("Overtime pay", formatMoney(result.overtimePay, currency))
+                        if (result.holidayPay.signum() > 0) {
+                            AmountRow("Holiday extra pay", formatMoney(result.holidayPay, currency))
+                        }
                         AmountRow("Allowances", formatMoney(result.allowances, currency))
                         HorizontalDivider(Modifier.padding(vertical = 4.dp))
                         AmountRow("Gross pay", formatMoney(result.gross, currency), emphasis = true)
@@ -208,8 +227,9 @@ private fun PeriodRow(title: String, result: EarningsResult, currency: String) {
                 Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 val overtime =
                     if (result.overtimeMinutes > 0) " · ${formatDuration(result.overtimeMinutes)} overtime" else ""
+                val paidHoliday = if (result.paidHolidayCount > 0) " · paid holiday" else ""
                 Text(
-                    "${result.shiftCount} shift(s) · ${formatDuration(result.workedMinutes)} worked$overtime",
+                    "${result.shiftCount} shift(s) · ${formatDuration(result.workedMinutes)} worked$overtime$paidHoliday",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

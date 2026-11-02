@@ -55,11 +55,13 @@ import com.sekharjal.shiftpay.ui.PickTimeDialog
 import com.sekharjal.shiftpay.ui.ScreenTitle
 import com.sekharjal.shiftpay.ui.SectionCard
 import com.sekharjal.shiftpay.ui.SectionTitle
+import com.sekharjal.shiftpay.ui.formatDateWithDay
 import com.sekharjal.shiftpay.ui.formatDuration
 import com.sekharjal.shiftpay.ui.formatMoney
 import com.sekharjal.shiftpay.ui.formatTime
 import com.sekharjal.shiftpay.ui.label
 import com.sekharjal.shiftpay.ui.monthTitle
+import java.time.LocalDate
 import java.time.LocalTime
 import java.time.YearMonth
 
@@ -71,19 +73,27 @@ fun ProfileScreen(
     onDeleteAllowance: (Long) -> Unit,
     onAddDeduction: (String, String, Frequency) -> Unit,
     onDeleteDeduction: (Long) -> Unit,
+    onAddHoliday: (LocalDate, String) -> Unit,
+    onDeleteHoliday: (LocalDate) -> Unit,
 ) {
     val saved = snap.settings
-    var name by remember(saved) { mutableStateOf(saved.name) }
-    var payMode by remember(saved) { mutableStateOf(saved.payMode) }
-    var baseSalary by remember(saved) { mutableStateOf(saved.baseSalary) }
-    var hourlyRate by remember(saved) { mutableStateOf(saved.hourlyRate) }
-    var standardHours by remember(saved) { mutableStateOf(saved.standardHours) }
-    var multiplier by remember(saved) { mutableStateOf(saved.overtimeMultiplier) }
-    var overtimeMode by remember(saved) { mutableStateOf(saved.overtimeMode) }
-    var shiftStart by remember(saved) { mutableStateOf(saved.shiftStart) }
-    var shiftEnd by remember(saved) { mutableStateOf(saved.shiftEnd) }
-    var breakText by remember(saved) { mutableStateOf(saved.shiftBreakMinutes) }
-    var breakPaid by remember(saved) { mutableStateOf(saved.shiftBreakPaid) }
+    // The form restarts from the saved values only when a form setting changes, so adding a holiday
+    // or clocking in never wipes what is being typed.
+    val formKey = saved.copy(holidaysRaw = "", activeShiftStart = "")
+    var name by remember(formKey) { mutableStateOf(saved.name) }
+    var payMode by remember(formKey) { mutableStateOf(saved.payMode) }
+    var baseSalary by remember(formKey) { mutableStateOf(saved.baseSalary) }
+    var hourlyRate by remember(formKey) { mutableStateOf(saved.hourlyRate) }
+    var standardHours by remember(formKey) { mutableStateOf(saved.standardHours) }
+    var multiplier by remember(formKey) { mutableStateOf(saved.overtimeMultiplier) }
+    var overtimeMode by remember(formKey) { mutableStateOf(saved.overtimeMode) }
+    var shiftStart by remember(formKey) { mutableStateOf(saved.shiftStart) }
+    var shiftEnd by remember(formKey) { mutableStateOf(saved.shiftEnd) }
+    var breakText by remember(formKey) { mutableStateOf(saved.shiftBreakMinutes) }
+    var breakPaid by remember(formKey) { mutableStateOf(saved.shiftBreakPaid) }
+    var holidayMultiplied by remember(formKey) { mutableStateOf(saved.holidayWorkMultiplied) }
+    var holidayMultiplierText by remember(formKey) { mutableStateOf(saved.holidayMultiplier) }
+    var showHolidayDialog by remember { mutableStateOf(false) }
 
     var showAllowanceDialog by remember { mutableStateOf(false) }
     var showDeductionDialog by remember { mutableStateOf(false) }
@@ -102,6 +112,8 @@ fun ProfileScreen(
         shiftEnd = shiftEnd,
         shiftBreakMinutes = breakText,
         shiftBreakPaid = breakPaid,
+        holidayWorkMultiplied = holidayMultiplied,
+        holidayMultiplier = holidayMultiplierText,
     )
     val dirty = draft != saved
     val month = remember { YearMonth.now() }
@@ -246,6 +258,36 @@ fun ProfileScreen(
             }
         }
 
+        SectionCard {
+            SectionTitle("Holiday pay")
+            Text(
+                "A listed holiday you don't work is paid as a normal day. " +
+                    "If you work on a holiday, your employer may pay:",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(8.dp))
+            ChoiceRow(
+                selected = !holidayMultiplied,
+                label = "Normal pay, no extra",
+                onClick = { holidayMultiplied = false },
+            )
+            ChoiceRow(
+                selected = holidayMultiplied,
+                label = "A higher rate (multiplier)",
+                onClick = { holidayMultiplied = true },
+            )
+            if (holidayMultiplied) {
+                Spacer(Modifier.height(8.dp))
+                DecimalField(
+                    "Holiday multiplier",
+                    holidayMultiplierText,
+                    { holidayMultiplierText = it },
+                    supportingText = "For example 2 means double pay for the hours you work on a holiday",
+                )
+            }
+        }
+
         Button(
             onClick = { onSaveSettings(draft.copy(name = draft.name.trim())) },
             enabled = dirty && !sameShiftTimes,
@@ -285,12 +327,34 @@ fun ProfileScreen(
         }
 
         SectionCard {
+            SectionTitle("Holidays")
+            if (snap.holidays.isEmpty()) {
+                Text(
+                    "None yet. Add the holidays your employer gives, such as Diwali or Republic Day.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            snap.holidays.forEach { holiday ->
+                HolidayRow(
+                    name = holiday.name,
+                    dateText = formatDateWithDay(holiday.date, saved.dateFormat),
+                    onDelete = { onDeleteHoliday(holiday.date) },
+                )
+            }
+            TextButton(onClick = { showHolidayDialog = true }) { Text("+ Add holiday") }
+        }
+
+        SectionCard {
             SectionTitle("Estimated take-home · ${monthTitle(month)}")
             AmountRow(
                 if (payMode == PayMode.MONTHLY) "Base salary" else "Regular pay",
                 formatMoney(preview.regularPay, currency),
             )
             AmountRow("Overtime pay", formatMoney(preview.overtimePay, currency))
+            if (preview.holidayPay.signum() > 0) {
+                AmountRow("Holiday extra pay", formatMoney(preview.holidayPay, currency))
+            }
             AmountRow("Allowances", formatMoney(preview.allowances, currency))
             HorizontalDivider(Modifier.padding(vertical = 4.dp))
             AmountRow("Gross", formatMoney(preview.gross, currency), emphasis = true)
@@ -335,6 +399,17 @@ fun ProfileScreen(
             onConfirm = { picked: LocalTime ->
                 shiftEnd = picked.toString()
                 showEndPicker = false
+            },
+        )
+    }
+
+    if (showHolidayDialog) {
+        AddHolidayDialog(
+            dateFormat = saved.dateFormat,
+            onDismiss = { showHolidayDialog = false },
+            onAdd = { date, holidayName ->
+                onAddHoliday(date, holidayName)
+                showHolidayDialog = false
             },
         )
     }
