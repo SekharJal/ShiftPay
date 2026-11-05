@@ -260,10 +260,10 @@ fun ProfileScreen(
         }
 
         SectionCard {
-            SectionTitle("Holiday pay")
+            SectionTitle("Holiday & Leave pay")
             Text(
-                "A listed Paid holiday you don't work is paid as a normal day. " +
-                    "Unpaid holidays earn nothing when not worked, and never get the extra below. " +
+                "A listed Paid holiday or leave you don't work is paid as a normal day. " +
+                    "Unpaid ones earn nothing when not worked, and never get the extra below. " +
                     "If you work on a Paid holiday, your employer may pay:",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -329,10 +329,10 @@ fun ProfileScreen(
         }
 
         SectionCard {
-            SectionTitle("Holidays")
+            SectionTitle("Holiday & Leaves")
             if (snap.holidays.isEmpty()) {
                 Text(
-                    "None yet. Add the holidays your employer gives, such as Diwali or Republic Day.",
+                    "None yet. Add the holidays and leaves you get, such as Diwali, Republic Day or a paid leave day.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -346,7 +346,7 @@ fun ProfileScreen(
                     onDelete = { onDeleteHoliday(holiday.date) },
                 )
             }
-            TextButton(onClick = { showHolidayDialog = true }) { Text("+ Add holiday") }
+            TextButton(onClick = { showHolidayDialog = true }) { Text("+ Add holiday or leave") }
         }
 
         SectionCard {

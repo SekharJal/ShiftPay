@@ -51,13 +51,13 @@ fun AddHolidayDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add holiday") },
+        title = { Text("Add holiday or leave") },
         text = {
             Column {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Name (for example Diwali)") },
+                    label = { Text("Name (for example Diwali or Sick leave)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -68,12 +68,12 @@ fun AddHolidayDialog(
                 Spacer(Modifier.height(12.dp))
                 ChoiceRow(
                     selected = paid,
-                    label = "Paid holiday",
+                    label = "Paid",
                     onClick = { paid = true },
                 )
                 ChoiceRow(
                     selected = !paid,
-                    label = "Unpaid holiday",
+                    label = "Unpaid",
                     onClick = { paid = false },
                 )
                 Text(

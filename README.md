@@ -27,18 +27,18 @@ The bottom bar has five icon tabs:
 
 A running shift survives closing the app or restarting the phone. If you forgot to clock in, use **Change start time**.
 
-## Holidays
+## Holiday & Leaves
 
-Add your own holidays in **Profile -> Holidays** (works for any country; nothing is pre-filled).
+Add your own holidays and leaves in **Profile -> Holiday & Leaves** (works for any country; nothing is pre-filled).
 
-Each holiday is either **Paid** or **Unpaid**. Pick it when you add the holiday, and tap the Paid/Unpaid chip on
-a holiday later to switch it. Holidays you already had stay Paid.
+Each entry is either **Paid** or **Unpaid**. Pick it when you add it, and tap the Paid/Unpaid chip on
+an entry later to switch it. Entries you already had stay Paid.
 
-- A **Paid** holiday you **don't work** is paid as a normal day: your scheduled hours are credited
+- A **Paid** holiday or leave you **don't work** is paid as a normal day: your scheduled hours are credited
   (so a monthly salary is not reduced). It counts once the date has arrived.
-- If you **work** on a **Paid** holiday, choose in **Profile -> Holiday pay**: normal pay, or a higher rate (for example 2x).
+- If you **work** on a **Paid** holiday, choose in **Profile -> Holiday & Leave pay**: normal pay, or a higher rate (for example 2x).
   The extra is the part above normal pay. Overtime hours on a holiday use the better of the overtime and holiday multipliers, never both stacked.
-- An **Unpaid** holiday you don't work earns nothing. If you work it, you are paid for the hours as on any normal day,
+- An **Unpaid** holiday or leave you don't work earns nothing. If you work it, you are paid for the hours as on any normal day,
   with no holiday multiplier.
 
 ## How the money maths works

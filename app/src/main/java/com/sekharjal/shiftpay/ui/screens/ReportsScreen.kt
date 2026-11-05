@@ -141,7 +141,7 @@ fun ReportsScreen(snap: Snapshot) {
                     AmountRow("Overtime hours", formatDuration(result.overtimeMinutes))
                     AmountRow("Shifts logged", result.shiftCount.toString())
                     if (result.paidHolidayCount > 0) {
-                        AmountRow("Paid holidays", result.paidHolidayCount.toString())
+                        AmountRow("Paid holidays & leaves", result.paidHolidayCount.toString())
                     }
                 }
                 SectionCard {
@@ -227,7 +227,7 @@ private fun PeriodRow(title: String, result: EarningsResult, currency: String) {
                 Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 val overtime =
                     if (result.overtimeMinutes > 0) " · ${formatDuration(result.overtimeMinutes)} overtime" else ""
-                val paidHoliday = if (result.paidHolidayCount > 0) " · paid holiday" else ""
+                val paidHoliday = if (result.paidHolidayCount > 0) " · paid holiday/leave" else ""
                 Text(
                     "${result.shiftCount} shift(s) · ${formatDuration(result.workedMinutes)} worked$overtime$paidHoliday",
                     style = MaterialTheme.typography.bodySmall,
