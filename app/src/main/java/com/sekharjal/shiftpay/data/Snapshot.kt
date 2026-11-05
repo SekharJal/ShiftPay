@@ -55,6 +55,9 @@ class Snapshot(
     val holidays: List<Holiday> = settings.holidays()
     val holidayDates: Set<LocalDate> = holidays.map { it.date }.toSet()
 
+    /** Only the paid holidays: these are the ones that can earn the holiday multiplier when worked. */
+    private val paidHolidayDates: Set<LocalDate> = holidays.filter { it.paid }.map { it.date }.toSet()
+
     /** Shifts that could be read, newest first (the database already sorts them). */
     val entries: List<ShiftEntry> = records.mapNotNull { r -> r.toInput()?.let { ShiftEntry(r, it) } }
 
@@ -72,17 +75,18 @@ class Snapshot(
         includeMonthlyItems: Boolean,
         paidHolidayCount: Int = 0,
     ): EarningsResult = ShiftCalculator.calculate(
-        inputs, allowanceLines, deductionLines, rules, includeMonthlyItems, holidayDates, paidHolidayCount,
+        inputs, allowanceLines, deductionLines, rules, includeMonthlyItems, paidHolidayDates, paidHolidayCount,
     )
 
     /**
-     * Holidays in this month that have already passed and were not worked. Each is paid as a
-     * normal day. (A holiday later in the month is not counted until it arrives.)
+     * Paid holidays in this month that have already passed and were not worked. Each is paid as a
+     * normal day. Unpaid holidays are never credited. (A holiday later in the month is not counted
+     * until it arrives.)
      */
     fun creditedHolidays(month: YearMonth): List<Holiday> {
         val worked = inputsIn(month).map { it.date }.toSet()
         return holidays.filter {
-            YearMonth.from(it.date) == month && !it.date.isAfter(today) && it.date !in worked
+            it.paid && YearMonth.from(it.date) == month && !it.date.isAfter(today) && it.date !in worked
         }
     }
 

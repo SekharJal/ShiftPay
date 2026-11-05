@@ -44,27 +44,37 @@ data class AppSettings(
     // Working on a holiday: false = paid like a normal day, true = paid with the multiplier below.
     val holidayWorkMultiplied: Boolean = false,
     val holidayMultiplier: String = "2",
-    // The worker's holiday list, stored as text lines "2026-11-12|Diwali". Edited only via editHolidays.
+    // The worker's holiday list, stored as text lines "2026-11-12|Diwali|P" (P = paid, U = unpaid).
+    // Older lines without the last part ("2026-11-12|Diwali") are read as paid. Edited only via editHolidays.
     val holidaysRaw: String = "",
 )
 
-data class Holiday(val date: LocalDate, val name: String)
+/**
+ * A holiday the worker listed. [paid] = true means the employer pays for it (a day off is paid as a
+ * normal day, and working it can earn the holiday multiplier). [paid] = false means an unpaid holiday:
+ * a day off earns nothing, and working it is paid as a normal day with no holiday multiplier.
+ */
+data class Holiday(val date: LocalDate, val name: String, val paid: Boolean = true)
 
 fun parseHolidays(raw: String): List<Holiday> =
     raw.lineSequence()
         .mapNotNull { line ->
-            val bar = line.indexOf('|')
-            if (bar < 0) {
+            val parts = line.split('|', limit = 3)
+            if (parts.size < 2) {
                 null
             } else {
-                runCatching { Holiday(LocalDate.parse(line.substring(0, bar)), line.substring(bar + 1)) }.getOrNull()
+                runCatching {
+                    Holiday(LocalDate.parse(parts[0]), parts[1], paid = parts.getOrNull(2)?.trim() != "U")
+                }.getOrNull()
             }
         }
         .sortedBy { it.date }
         .toList()
 
 fun encodeHolidays(list: List<Holiday>): String =
-    list.joinToString("\n") { "${it.date}|${it.name.replace('|', ' ').replace('\n', ' ')}" }
+    list.joinToString("\n") {
+        "${it.date}|${it.name.replace('|', ' ').replace('\n', ' ')}|${if (it.paid) "P" else "U"}"
+    }
 
 fun AppSettings.holidays(): List<Holiday> = parseHolidays(holidaysRaw)
 

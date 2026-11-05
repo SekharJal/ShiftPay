@@ -130,4 +130,54 @@ class HolidayTest {
         assertEquals(listOf(LocalDate.of(2020, 1, 1)), credited.map { it.date }) // 26th was worked
         assertEquals(0, snap.creditedHolidays(YearMonth.of(2099, 1)).size) // not yet arrived
     }
+
+    @Test
+    fun old_holiday_lines_without_a_paid_flag_are_read_as_paid() {
+        val parsed = parseHolidays("2026-11-08|Diwali")
+        assertEquals(1, parsed.size)
+        assertEquals(true, parsed[0].paid)
+    }
+
+    @Test
+    fun paid_and_unpaid_flags_round_trip() {
+        val list = listOf(
+            Holiday(LocalDate.of(2026, 1, 26), "Republic Day", paid = true),
+            Holiday(LocalDate.of(2026, 11, 8), "Local fair", paid = false),
+        )
+        val parsed = parseHolidays(encodeHolidays(list))
+        assertEquals(listOf(true, false), parsed.map { it.paid })
+        assertEquals(listOf("Republic Day", "Local fair"), parsed.map { it.name })
+    }
+
+    @Test
+    fun unpaid_holidays_are_not_credited_when_not_worked() {
+        val settings = AppSettings(
+            holidaysRaw = "2020-01-01|New Year|P\n2020-01-26|Local fair|U",
+        )
+        val snap = Snapshot(settings, emptyList(), emptyList(), emptyList())
+        val credited = snap.creditedHolidays(YearMonth.of(2020, 1))
+        assertEquals(listOf(LocalDate.of(2020, 1, 1)), credited.map { it.date }) // the unpaid one is skipped
+    }
+
+    @Test
+    fun working_an_unpaid_holiday_gets_no_holiday_multiplier() {
+        fun holidayPayFor(flag: String): BigDecimal {
+            val settings = AppSettings(
+                currency = "USD",
+                payMode = PayMode.HOURLY,
+                hourlyRate = "15",
+                holidayWorkMultiplied = true,
+                holidayMultiplier = "2",
+                holidaysRaw = "2020-01-26|Holiday|$flag",
+            )
+            val worked = ShiftRecord(
+                date = "2020-01-26", startTime = "09:00", endTime = "17:00",
+                breakMinutes = 0, breakPaid = false, shiftType = "DAY", overtimeMinutes = 0,
+            )
+            return Snapshot(settings, listOf(worked), emptyList(), emptyList())
+                .monthResult(YearMonth.of(2020, 1)).holidayPay
+        }
+        assertMoney("120.00", holidayPayFor("P")) // paid holiday: extra (2 - 1) x 8h x 15
+        assertMoney("0.00", holidayPayFor("U")) // unpaid holiday: worked as a normal day
+    }
 }

@@ -68,13 +68,20 @@ class ShiftPayViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    /** Adds a holiday; adding the same date again just renames it. */
-    fun addHoliday(date: LocalDate, name: String) {
+    /** Adds a holiday; adding the same date again just replaces its name and Paid/Unpaid choice. */
+    fun addHoliday(date: LocalDate, name: String, paid: Boolean) {
         viewModelScope.launch {
             store.editHolidays { list ->
-                (list.filter { it.date != date } + Holiday(date, name.trim().ifEmpty { "Holiday" }))
+                (list.filter { it.date != date } + Holiday(date, name.trim().ifEmpty { "Holiday" }, paid))
                     .sortedBy { it.date }
             }
+        }
+    }
+
+    /** Flips one holiday between Paid and Unpaid. */
+    fun setHolidayPaid(date: LocalDate, paid: Boolean) {
+        viewModelScope.launch {
+            store.editHolidays { list -> list.map { if (it.date == date) it.copy(paid = paid) else it } }
         }
     }
 

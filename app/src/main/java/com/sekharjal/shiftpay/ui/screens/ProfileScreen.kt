@@ -73,7 +73,8 @@ fun ProfileScreen(
     onDeleteAllowance: (Long) -> Unit,
     onAddDeduction: (String, String, Frequency) -> Unit,
     onDeleteDeduction: (Long) -> Unit,
-    onAddHoliday: (LocalDate, String) -> Unit,
+    onAddHoliday: (LocalDate, String, Boolean) -> Unit,
+    onSetHolidayPaid: (LocalDate, Boolean) -> Unit,
     onDeleteHoliday: (LocalDate) -> Unit,
 ) {
     val saved = snap.settings
@@ -261,8 +262,9 @@ fun ProfileScreen(
         SectionCard {
             SectionTitle("Holiday pay")
             Text(
-                "A listed holiday you don't work is paid as a normal day. " +
-                    "If you work on a holiday, your employer may pay:",
+                "A listed Paid holiday you don't work is paid as a normal day. " +
+                    "Unpaid holidays earn nothing when not worked, and never get the extra below. " +
+                    "If you work on a Paid holiday, your employer may pay:",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -339,6 +341,8 @@ fun ProfileScreen(
                 HolidayRow(
                     name = holiday.name,
                     dateText = formatDateWithDay(holiday.date, saved.dateFormat),
+                    paid = holiday.paid,
+                    onPaidChange = { onSetHolidayPaid(holiday.date, it) },
                     onDelete = { onDeleteHoliday(holiday.date) },
                 )
             }
@@ -407,8 +411,8 @@ fun ProfileScreen(
         AddHolidayDialog(
             dateFormat = saved.dateFormat,
             onDismiss = { showHolidayDialog = false },
-            onAdd = { date, holidayName ->
-                onAddHoliday(date, holidayName)
+            onAdd = { date, holidayName, paid ->
+                onAddHoliday(date, holidayName, paid)
                 showHolidayDialog = false
             },
         )

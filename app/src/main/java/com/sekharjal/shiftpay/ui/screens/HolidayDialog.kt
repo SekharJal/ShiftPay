@@ -13,6 +13,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -30,20 +31,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.sekharjal.shiftpay.ui.ChoiceRow
 import com.sekharjal.shiftpay.ui.formatDateWithDay
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 
-/** Asks for a holiday's name and date. */
+/** Asks for a holiday's name, date, and whether it is a Paid or Unpaid holiday. */
 @Composable
 fun AddHolidayDialog(
     dateFormat: String,
     onDismiss: () -> Unit,
-    onAdd: (LocalDate, String) -> Unit,
+    onAdd: (LocalDate, String, Boolean) -> Unit,
 ) {
     var date by remember { mutableStateOf(LocalDate.now()) }
     var name by remember { mutableStateOf("") }
+    var paid by remember { mutableStateOf(true) }
     var showPicker by remember { mutableStateOf(false) }
 
     AlertDialog(
@@ -62,9 +65,29 @@ fun AddHolidayDialog(
                 OutlinedButton(onClick = { showPicker = true }, modifier = Modifier.fillMaxWidth()) {
                     Text("Date: ${formatDateWithDay(date, dateFormat)}")
                 }
+                Spacer(Modifier.height(12.dp))
+                ChoiceRow(
+                    selected = paid,
+                    label = "Paid holiday",
+                    onClick = { paid = true },
+                )
+                ChoiceRow(
+                    selected = !paid,
+                    label = "Unpaid holiday",
+                    onClick = { paid = false },
+                )
+                Text(
+                    if (paid) {
+                        "A day off is paid as a normal day."
+                    } else {
+                        "A day off earns nothing. If you work, it is paid as a normal day."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         },
-        confirmButton = { TextButton(onClick = { onAdd(date, name) }) { Text("Add") } },
+        confirmButton = { TextButton(onClick = { onAdd(date, name, paid) }) { Text("Add") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 
@@ -89,9 +112,18 @@ fun AddHolidayDialog(
     }
 }
 
-/** One line in the holidays list: name and date, with a delete button. */
+/**
+ * One line in the holidays list: name and date, a Paid/Unpaid chip (tap it to switch),
+ * and a delete button.
+ */
 @Composable
-fun HolidayRow(name: String, dateText: String, onDelete: () -> Unit) {
+fun HolidayRow(
+    name: String,
+    dateText: String,
+    paid: Boolean,
+    onPaidChange: (Boolean) -> Unit,
+    onDelete: () -> Unit,
+) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
@@ -101,6 +133,11 @@ fun HolidayRow(name: String, dateText: String, onDelete: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        FilterChip(
+            selected = paid,
+            onClick = { onPaidChange(!paid) },
+            label = { Text(if (paid) "Paid" else "Unpaid") },
+        )
         IconButton(onClick = onDelete) {
             Icon(Icons.Filled.Delete, contentDescription = "Remove $name")
         }

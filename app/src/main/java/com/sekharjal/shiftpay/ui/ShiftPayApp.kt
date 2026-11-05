@@ -154,7 +154,8 @@ private fun AppContent(vm: ShiftPayViewModel, settings: AppSettings) {
                     onDeleteAllowance = { vm.deleteAllowance(it) },
                     onAddDeduction = { name, amount, freq -> vm.addDeduction(name, amount, freq) },
                     onDeleteDeduction = { vm.deleteDeduction(it) },
-                    onAddHoliday = { date, name -> vm.addHoliday(date, name) },
+                    onAddHoliday = { date, name, paid -> vm.addHoliday(date, name, paid) },
+                    onSetHolidayPaid = { date, paid -> vm.setHolidayPaid(date, paid) },
                     onDeleteHoliday = { vm.deleteHoliday(it) },
                 )
             }

@@ -124,8 +124,9 @@ object ShiftCalculator {
      * @param includeMonthlyItems true for a whole-month result: includes the "per month"
      *   allowances/deductions. False for a week or a single day. (A monthly salary is
      *   always earned in proportion to the hours worked, so it needs no such flag.)
-     * @param holidayDates every holiday the worker has listed. A shift on one of these dates is
-     *   paid with the holiday multiplier (if the worker chose one).
+     * @param holidayDates every PAID holiday the worker has listed (unpaid holidays are left out by
+     *   the caller). A shift on one of these dates is paid with the holiday multiplier (if the
+     *   worker chose one).
      * @param paidHolidayCount listed holidays in this period that were NOT worked. Each one is
      *   paid as a normal day, i.e. the worker's scheduled hours are credited.
      */
